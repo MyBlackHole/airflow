@@ -62,7 +62,9 @@ HEADER = '\n'.join(
     ]
 )
 
-LOGGING_LEVEL = logging.INFO
+# LOGGING_LEVEL = logging.INFO
+LOGGING_LEVEL = logging.DEBUG
+
 
 # the prefix to append to gunicorn worker processes after init
 GUNICORN_WORKER_READY_PREFIX = "[ready] "
@@ -230,7 +232,7 @@ def configure_orm(disable_connection_pool=False):
     else:
         connect_args = {}
 
-    engine = create_engine(SQL_ALCHEMY_CONN, connect_args=connect_args, **engine_args)
+    engine = create_engine(SQL_ALCHEMY_CONN, connect_args=connect_args, echo=True, **engine_args)
 
     mask_secret(engine.url.password)
 

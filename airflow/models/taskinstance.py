@@ -772,6 +772,7 @@ class TaskInstance(Base, LoggingMixin):
         self.pool_slots = task.pool_slots
         self.priority_weight = task.priority_weight_total
         self.run_as_user = task.run_as_user
+        # 重拾怎么赋值给最大重试???
         self.max_tries = task.retries
         self.executor_config = task.executor_config
         self.operator = task.task_type
@@ -1451,6 +1452,7 @@ class TaskInstance(Base, LoggingMixin):
                     self._update_ti_state_for_sensing()
 
             # Execute the task
+            # 执行 task
             with set_current_context(context):
                 result = self._execute_task(context, self.task)
 

@@ -169,6 +169,7 @@ def send_task_to_executor(
     key, command, queue, task_to_run = task_tuple
     try:
         with timeout(seconds=OPERATION_TIMEOUT):
+            # 最终 send task
             result = task_to_run.apply_async(args=[command], queue=queue)
     except Exception as e:
         exception_traceback = f"Celery Task ID: {key}\n{traceback.format_exc()}"
@@ -253,6 +254,7 @@ class CeleryExecutor(BaseExecutor):
         :param open_slots: Number of open slots
         :return:
         """
+        # 排序返回任务队列里的任务
         sorted_queue = self.order_queued_tasks_by_priority()
 
         task_tuples_to_send: List[TaskInstanceInCelery] = []
@@ -274,6 +276,7 @@ class CeleryExecutor(BaseExecutor):
         # for all tasks.
         cached_celery_backend = first_task.backend
 
+        # 发送 task 到 celery
         key_and_async_results = self._send_tasks_to_celery(task_tuples_to_send)
         self.log.debug('Sent all tasks.')
 
@@ -321,6 +324,7 @@ class CeleryExecutor(BaseExecutor):
         chunksize = self._num_tasks_per_send_process(len(task_tuples_to_send))
         num_processes = min(len(task_tuples_to_send), self._sync_parallelism)
 
+        # 启动进程池发 task
         with ProcessPoolExecutor(max_workers=num_processes) as send_pool:
             key_and_async_results = list(
                 send_pool.map(send_task_to_executor, task_tuples_to_send, chunksize=chunksize)

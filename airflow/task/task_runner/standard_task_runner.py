@@ -82,6 +82,7 @@ class StandardTaskRunner(BaseTaskRunner):
             setproctitle(proc_title.format(args))
 
             try:
+                # 执行 airflow run dag_id task_id execution_date
                 args.func(args, dag=self.dag)
                 return_code = 0
             except Exception:

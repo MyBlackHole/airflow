@@ -226,6 +226,7 @@ def _capture_task_logs(ti):
             root_logger.handlers[:] = orig_handlers
 
 
+# task instance 入口
 @cli_utils.action_logging
 def task_run(args, dag=None):
     """Run a single task instance.

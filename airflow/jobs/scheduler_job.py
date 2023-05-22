@@ -440,6 +440,7 @@ class SchedulerJob(BaseJob):
             if ti.dag_run.state in State.finished:
                 ti.set_state(State.NONE, session=session)
                 continue
+            # 生成命令
             command = ti.command_as_list(
                 local=True,
                 pickle_id=ti.dag_model.pickle_id,
@@ -449,6 +450,7 @@ class SchedulerJob(BaseJob):
             queue = ti.queue
             self.log.info("Sending %s to executor with priority %s and queue %s", ti.key, priority, queue)
 
+            # 推送任务
             self.executor.queue_command(
                 ti,
                 command,
@@ -697,7 +699,6 @@ class SchedulerJob(BaseJob):
 
         for loop_count in itertools.count(start=1):
             with Stats.timer() as timer:
-
                 if self.using_sqlite:
                     self.processor_agent.run_single_parsing_loop()
                     # For the sqlite case w/ 1 thread, wait until the processor
@@ -706,8 +707,10 @@ class SchedulerJob(BaseJob):
                     self.processor_agent.wait_until_finished()
 
                 with create_session() as session:
+                    # dag 任务调度处理
                     num_queued_tis = self._do_scheduling(session)
 
+                    # 执行器心跳，调用触发方法
                     self.executor.heartbeat()
                     session.expunge_all()
                     num_finished_events = self._process_executor_events(session=session)
@@ -777,8 +780,8 @@ class SchedulerJob(BaseJob):
         """
         # Put a check in place to make sure we don't commit unexpectedly
         with prohibit_commit(session) as guard:
-
             if settings.USE_JOB_SCHEDULE:
+                # dag 创建 dag_run
                 self._create_dagruns_for_dags(guard, session)
 
             self._start_queued_dagruns(session)
@@ -788,6 +791,7 @@ class SchedulerJob(BaseJob):
             # examining, rather than making one query per DagRun
 
             callback_tuples = []
+            # 处理调度 dag 的策略
             for dag_run in dag_runs:
                 callback_to_run = self._schedule_dag_run(dag_run, session)
                 callback_tuples.append((dag_run, callback_to_run))
@@ -817,6 +821,7 @@ class SchedulerJob(BaseJob):
                 timer.start()
 
                 # Find anything TIs in state SCHEDULED, try to QUEUE it (send it to the executor)
+                # 推送任务
                 num_queued_tis = self._critical_section_execute_task_instances(session=session)
 
                 # Make sure we only sent this metric if we obtained the lock, otherwise we'll skew the
@@ -885,7 +890,6 @@ class SchedulerJob(BaseJob):
         )
 
         for dag_model in dag_models:
-
             dag = self.dagbag.get_dag(dag_model.dag_id, session=session)
             if not dag:
                 self.log.error("DAG '%s' not found in serialized_dag table", dag_model.dag_id)
@@ -958,7 +962,6 @@ class SchedulerJob(BaseJob):
                 Stats.timing(f'dagrun.schedule_delay.{dag.dag_id}', schedule_delay)
 
         for dag_run in dag_runs:
-
             dag = dag_run.dag = self.dagbag.get_dag(dag_run.dag_id, session=session)
             if not dag:
                 self.log.error("DAG '%s' not found in serialized_dag table", dag_run.dag_id)
@@ -1116,6 +1119,8 @@ class SchedulerJob(BaseJob):
 
         for attempt in run_with_db_retries(logger=self.log):
             with attempt:
+                import pdb
+                pdb.set_trace()
                 self.log.debug(
                     "Running SchedulerJob.adopt_or_reset_orphaned_tasks with retries. Try %d of %d",
                     attempt.retry_state.attempt_number,

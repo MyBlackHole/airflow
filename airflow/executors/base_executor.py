@@ -155,6 +155,7 @@ class BaseExecutor(LoggingMixin):
         Stats.gauge('executor.queued_tasks', num_queued_tasks)
         Stats.gauge('executor.running_tasks', num_running_tasks)
 
+        # 触发添加到任务队列任务
         self.trigger_tasks(open_slots)
 
         # Calling child class sync method
