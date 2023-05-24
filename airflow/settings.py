@@ -401,6 +401,7 @@ def configure_action_logging():
     """
 
 
+# 配置 AIRFLOW_HOME/config 为 python 包搜索路径
 def prepare_syspath():
     """Ensures that certain subfolders of AIRFLOW_HOME are on the classpath"""
     if DAGS_FOLDER not in sys.path:
@@ -498,6 +499,7 @@ def initialize():
     configure_action_logging()
 
     # Ensure we close DB connections at scheduler and gunicorn worker terminations
+    # 注册 db 连接收尸
     atexit.register(dispose_orm)
 
 

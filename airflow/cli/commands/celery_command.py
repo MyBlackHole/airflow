@@ -89,6 +89,7 @@ def _serve_logs(skip_serve_logs: bool = False) -> Optional[Process]:
 
 
 def _run_worker(options, skip_serve_logs):
+    # 启动日志服务
     sub_proc = _serve_logs(skip_serve_logs)
     try:
         celery_app.worker_main(options)
