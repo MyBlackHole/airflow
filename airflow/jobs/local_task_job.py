@@ -131,6 +131,7 @@ class LocalTaskJob(BaseJob):
                     self.handle_task_exit(return_code)
                     return
 
+                # 监控 task 的心跳
                 self.heartbeat()
 
                 # If it's been too long since we've heartbeat, then it's possible that
@@ -145,6 +146,7 @@ class LocalTaskJob(BaseJob):
                         "exceeded limit ({}s).".format(time_since_last_heartbeat, heartbeat_time_limit)
                     )
         finally:
+            # 没有结束的话 干掉 task
             self.on_kill()
 
     def handle_task_exit(self, return_code: int) -> None:

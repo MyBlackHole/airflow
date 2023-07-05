@@ -1327,6 +1327,7 @@ class TaskInstance(Base, LoggingMixin):
             if not mark_success:
                 self.task = self.task.prepare_for_execution()
                 context = self.get_template_context(ignore_param_exceptions=False)
+                ## 执行 task 任务逻辑
                 self._execute_task_with_callbacks(context)
             if not test_mode:
                 self.refresh_from_db(lock_for_update=True, session=session)
@@ -1410,6 +1411,7 @@ class TaskInstance(Base, LoggingMixin):
             self.task.on_kill()
             raise AirflowException("Task received SIGTERM signal")
 
+        # 注册 SIGTERM 信号处理函数
         signal.signal(signal.SIGTERM, signal_handler)
 
         # Don't clear Xcom until the task is certain to execute
@@ -1504,6 +1506,7 @@ class TaskInstance(Base, LoggingMixin):
                 if timeout_seconds <= 0:
                     raise AirflowTaskTimeout()
                 # Run task in timeout wrapper
+                # 设置超时方式执行
                 with timeout(timeout_seconds):
                     result = execute_callable(context=context)
             except AirflowTaskTimeout:
@@ -1610,6 +1613,7 @@ class TaskInstance(Base, LoggingMixin):
         session=None,
     ) -> None:
         """Run TaskInstance"""
+        # 依赖检测
         res = self.check_and_change_state_before_execution(
             verbose=verbose,
             ignore_all_deps=ignore_all_deps,
@@ -1627,6 +1631,7 @@ class TaskInstance(Base, LoggingMixin):
 
         try:
             error_fd = NamedTemporaryFile(delete=True)
+            # 进入运行逻辑
             self._run_raw_task(
                 mark_success=mark_success,
                 test_mode=test_mode,

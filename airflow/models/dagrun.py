@@ -909,6 +909,7 @@ class DagRun(Base, LoggingMixin):
 
         # Tasks using DummyOperator should not be executed, mark them as success
         if dummy_ti_ids:
+            # 跳过空算子
             count += (
                 session.query(TI)
                 .filter(

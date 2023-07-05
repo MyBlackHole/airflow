@@ -186,6 +186,7 @@ def worker(args):
                 _run_worker(options=options, skip_serve_logs=skip_serve_logs)
     else:
         # Run Celery worker in the same process
+        # 运行 celery woker
         _run_worker(options=options, skip_serve_logs=skip_serve_logs)
 
 

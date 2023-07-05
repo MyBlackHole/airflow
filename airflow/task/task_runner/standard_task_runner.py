@@ -82,7 +82,6 @@ class StandardTaskRunner(BaseTaskRunner):
             setproctitle(proc_title.format(args))
 
             try:
-                # 执行 airflow run dag_id task_id execution_date
                 args.func(args, dag=self.dag)
                 return_code = 0
             except Exception:
@@ -119,6 +118,7 @@ class StandardTaskRunner(BaseTaskRunner):
         _ = self.return_code(timeout=0)
 
         if self.process and self.process.is_running():
+            # 关闭跟踪监听的 task
             rcs = reap_process_group(self.process.pid, self.log)
             self._rc = rcs.get(self.process.pid)
 

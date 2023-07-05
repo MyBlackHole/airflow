@@ -450,7 +450,8 @@ class SchedulerJob(BaseJob):
             queue = ti.queue
             self.log.info("Sending %s to executor with priority %s and queue %s", ti.key, priority, queue)
 
-            # 推送任务
+            # 推送任务到 queue
+            # 再由 heartbeat trigger_tasks 推送到 redis (celery executors)
             self.executor.queue_command(
                 ti,
                 command,
@@ -482,8 +483,10 @@ class SchedulerJob(BaseJob):
             max_tis = self.executor.slots_available
         else:
             max_tis = min(self.max_tis_per_query, self.executor.slots_available)
+        # 查询需要推送到 queue 的 TI
         queued_tis = self._executable_task_instances_to_queued(max_tis, session=session)
 
+        # 添加到 queue
         self._enqueue_task_instances_with_queued_state(queued_tis, session=session)
         return len(queued_tis)
 
@@ -711,6 +714,7 @@ class SchedulerJob(BaseJob):
                     num_queued_tis = self._do_scheduling(session)
 
                     # 执行器心跳，调用触发方法
+                    # 执行推送 TI 运行命令到 redis (celery executor)
                     self.executor.heartbeat()
                     session.expunge_all()
                     num_finished_events = self._process_executor_events(session=session)
@@ -791,6 +795,7 @@ class SchedulerJob(BaseJob):
             # examining, rather than making one query per DagRun
 
             callback_tuples = []
+            # 检查运行中的 dag_run
             # 处理调度 dag 的策略
             for dag_run in dag_runs:
                 callback_to_run = self._schedule_dag_run(dag_run, session)
@@ -989,6 +994,8 @@ class SchedulerJob(BaseJob):
 
         :param dag_run: The DagRun to schedule
         :return: Callback that needs to be executed
+
+        单个 dag_run 处理
         """
         dag = dag_run.dag = self.dagbag.get_dag(dag_run.dag_id, session=session)
 
@@ -1002,6 +1009,7 @@ class SchedulerJob(BaseJob):
             and dag.dagrun_timeout
             and dag_run.start_date < timezone.utcnow() - dag.dagrun_timeout
         ):
+            # 判断是否运行超时
             dag_run.set_state(State.FAILED)
             unfinished_task_instances = (
                 session.query(TI)
@@ -1009,6 +1017,7 @@ class SchedulerJob(BaseJob):
                 .filter(TI.run_id == dag_run.run_id)
                 .filter(TI.state.in_(State.unfinished))
             )
+            # 更新 TI 为跳过，不再运行
             for task_instance in unfinished_task_instances:
                 task_instance.state = State.SKIPPED
                 session.merge(task_instance)
@@ -1049,6 +1058,7 @@ class SchedulerJob(BaseJob):
         # query to update all the TIs across all the execution dates and dag
         # IDs in a single query, but it turns out that can be _very very slow_
         # see #11147/commit ee90807ac for more details
+
         dag_run.schedule_tis(schedulable_tis, session)
 
         return callback_to_run
