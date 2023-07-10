@@ -43,12 +43,14 @@ def _run_scheduler_job(args):
     job = _create_scheduler_job(args)
     sub_proc = _serve_logs(skip_serve_logs)
     try:
+        # 启动调度 job
         job.run()
     finally:
         if sub_proc:
             sub_proc.terminate()
 
 
+# 调度启动入口
 @cli_utils.action_logging
 def scheduler(args):
     """Starts Airflow Scheduler"""

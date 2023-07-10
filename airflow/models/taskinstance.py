@@ -1513,6 +1513,7 @@ class TaskInstance(Base, LoggingMixin):
                 task_copy.on_kill()
                 raise
         else:
+            # 走入用户开发代码
             result = execute_callable(context=context)
         # If the task returns a result, push an XCom containing it
         if task_copy.do_xcom_push and result is not None:

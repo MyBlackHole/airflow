@@ -268,6 +268,7 @@ class SchedulerJob(BaseJob):
         if starved_pools:
             query = query.filter(not_(TI.pool.in_(starved_pools)))
 
+        # 限制数量
         query = query.limit(max_tis)
 
         task_instances_to_examine: List[TI] = with_row_locks(
@@ -411,6 +412,7 @@ class SchedulerJob(BaseJob):
         if len(executable_tis) > 0:
             # set TIs to queued state
             filter_for_tis = TI.filter_for_tis(executable_tis)
+            # 更新 TI 为队列中状态
             session.query(TI).filter(filter_for_tis).update(
                 # TODO[ha]: should we use func.now()? How does that work with DB timezone
                 # on mysql when it's not UTC?
@@ -480,6 +482,7 @@ class SchedulerJob(BaseJob):
         :return: Number of task instance with state changed.
         """
         if self.max_tis_per_query == 0:
+            # 获取可以接受的新任务数
             max_tis = self.executor.slots_available
         else:
             max_tis = min(self.max_tis_per_query, self.executor.slots_available)
@@ -716,6 +719,8 @@ class SchedulerJob(BaseJob):
                     # 执行器心跳，调用触发方法
                     # 执行推送 TI 运行命令到 redis (celery executor)
                     self.executor.heartbeat()
+
+                    # 删除会话所有实例
                     session.expunge_all()
                     num_finished_events = self._process_executor_events(session=session)
 
@@ -826,7 +831,7 @@ class SchedulerJob(BaseJob):
                 timer.start()
 
                 # Find anything TIs in state SCHEDULED, try to QUEUE it (send it to the executor)
-                # 推送任务
+                # 推送任务到 执行器 queue list
                 num_queued_tis = self._critical_section_execute_task_instances(session=session)
 
                 # Make sure we only sent this metric if we obtained the lock, otherwise we'll skew the

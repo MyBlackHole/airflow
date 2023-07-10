@@ -102,8 +102,10 @@ def _run_task_by_selected_method(args, dag: DAG, ti: TaskInstance) -> None:
     - by executor
     """
     if args.local:
+        # 运行跟踪 job
         _run_task_by_local_task_job(args, ti)
     elif args.raw:
+        # task 启动入口
         _run_raw_task(args, ti)
     else:
         _run_task_by_executor(args, dag, ti)
@@ -284,7 +286,9 @@ def task_run(args, dag=None):
     else:
         # Use DAG from parameter
         pass
+    # 获取对应 task
     task = dag.get_task(task_id=args.task_id)
+    # 通过 task 获取对应的 TI
     ti = _get_ti(task, args.execution_date_or_run_id)
     ti.init_run_context(raw=args.raw)
 
@@ -293,6 +297,7 @@ def task_run(args, dag=None):
     print(f"Running {ti} on host {hostname}")
 
     if args.interactive:
+        # 执行
         _run_task_by_selected_method(args, dag, ti)
     else:
         with _capture_task_logs(ti):

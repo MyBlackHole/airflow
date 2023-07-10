@@ -288,6 +288,7 @@ class BaseExecutor(LoggingMixin):
     def slots_available(self):
         """Number of new tasks this executor instance can accept"""
         if self.parallelism:
+            # 减去运行中与队列中
             return self.parallelism - len(self.running) - len(self.queued_tasks)
         else:
             return sys.maxsize
