@@ -162,6 +162,7 @@ class ExceptionWithTraceback:
 TaskInstanceInCelery = Tuple[TaskInstanceKey, CommandType, Optional[str], Task]
 
 
+# celery 发送 task 函数
 def send_task_to_executor(
     task_tuple: TaskInstanceInCelery,
 ) -> Tuple[TaskInstanceKey, CommandType, Union[AsyncResult, ExceptionWithTraceback]]:
@@ -171,6 +172,7 @@ def send_task_to_executor(
         with timeout(seconds=OPERATION_TIMEOUT):
             # 最终 send task
             result = task_to_run.apply_async(args=[command], queue=queue)
+            log.info("Black Hole command (%s)\n\tqueue:%s\tkey:%s", command, queue, key)
     except Exception as e:
         exception_traceback = f"Celery Task ID: {key}\n{traceback.format_exc()}"
         result = ExceptionWithTraceback(e, exception_traceback)

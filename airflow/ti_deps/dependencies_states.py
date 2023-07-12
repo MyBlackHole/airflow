@@ -23,6 +23,7 @@ EXECUTION_STATES = {
 }
 
 # In order to be able to get queued a task must have one of these states
+# 需要调度(或者较需要加入队列)状态列表
 SCHEDULEABLE_STATES = {
     State.NONE,
     State.UP_FOR_RETRY,

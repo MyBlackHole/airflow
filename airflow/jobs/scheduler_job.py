@@ -254,6 +254,8 @@ class SchedulerJob(BaseJob):
         # Get all task instances associated with scheduled
         # DagRuns which are not backfilled, in the given states,
         # and the dag is not paused
+
+        # 查询需要发送到 queue 列表 TI
         query = (
             session.query(TI)
             .join(TI.dag_run)
@@ -488,6 +490,25 @@ class SchedulerJob(BaseJob):
             max_tis = min(self.max_tis_per_query, self.executor.slots_available)
         # 查询需要推送到 queue 的 TI
         queued_tis = self._executable_task_instances_to_queued(max_tis, session=session)
+
+        # session_m = settings.Session()
+        # for ti in queued_tis:
+        #     ti_tmp = (
+        #         session_m.query(TaskInstance)
+        #         .filter(
+        #             TaskInstance.dag_id == ti.dag_id,
+        #             TaskInstance.task_id == ti.task_id,
+        #             TaskInstance.run_id == ti.run_id,
+        #         )
+        #         .all()
+        #     )
+        #     if ti_tmp:
+        #         state = ti_tmp[0].state
+        #     else:
+        #         state = None
+
+        #     task_instance_str = repr(ti_tmp)
+        #     self.log.info("Black Hole:\n\t%s\tstate: %s", task_instance_str, state)
 
         # 添加到 queue
         self._enqueue_task_instances_with_queued_state(queued_tis, session=session)
@@ -1052,6 +1073,7 @@ class SchedulerJob(BaseJob):
 
         self._verify_integrity_if_dag_changed(dag_run=dag_run, session=session)
         # TODO[HA]: Rename update_state -> schedule_dag_run, ?? something else?
+        # schedulable_tis 是 SCHEDULEABLE_STATES 列表状态里的
         schedulable_tis, callback_to_run = dag_run.update_state(session=session, execute_callbacks=False)
         if dag_run.state in State.finished:
             active_runs = dag.get_num_active_runs(only_running=False, session=session)
@@ -1064,6 +1086,9 @@ class SchedulerJob(BaseJob):
         # IDs in a single query, but it turns out that can be _very very slow_
         # see #11147/commit ee90807ac for more details
 
+        # 处理新的 dag_run running 触发的任务
+        # queue to schedule
+        # 提供 schedule
         dag_run.schedule_tis(schedulable_tis, session)
 
         return callback_to_run

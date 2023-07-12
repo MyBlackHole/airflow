@@ -413,15 +413,19 @@ class DagRun(Base, LoggingMixin):
             else:
                 # this is required to deal with NULL values
                 if None in state:
+                    # 存在 None
                     if all(x is None for x in state):
+                        # 全部都是 None
                         tis = tis.filter(TI.state.is_(None))
                     else:
+                        # 非全部
                         not_none_state = [s for s in state if s]
                         tis = tis.filter(or_(TI.state.in_(not_none_state), TI.state.is_(None)))
                 else:
                     tis = tis.filter(TI.state.in_(state))
 
         if self.dag and self.dag.partial:
+            # 需要部分 Ti 筛选
             tis = tis.filter(TI.task_id.in_(self.dag.task_ids))
         return tis.all()
 
@@ -618,8 +622,11 @@ class DagRun(Base, LoggingMixin):
         schedulable_tis: List[TI] = []
         changed_tis = False
 
+        # 获取当前 dag run 所有 TI
         tis = list(self.get_task_instances(session=session, state=State.task_states))
         self.log.debug("number of tis tasks for %s: %s task(s)", self, len(tis))
+
+        # 检查所有 TI 对应的 task 是否存在
         for ti in tis:
             try:
                 ti.task = self.get_dag().get_task(ti.task_id)
@@ -630,9 +637,12 @@ class DagRun(Base, LoggingMixin):
                 ti.state = State.REMOVED
                 session.flush()
 
+        # 未完成(是没有最终状态，不代表成功)
         unfinished_tasks = [t for t in tis if t.state in State.unfinished]
+        # 完成
         finished_tasks = [t for t in tis if t.state in State.finished]
         if unfinished_tasks:
+            # 查找需要加入队列的
             scheduleable_tasks = [ut for ut in unfinished_tasks if ut.state in SCHEDULEABLE_STATES]
             self.log.debug("number of scheduleable tasks for %s: %s task(s)", self, len(scheduleable_tasks))
             schedulable_tis, changed_tis = self._get_ready_tis(scheduleable_tasks, finished_tasks, session)
@@ -656,9 +666,11 @@ class DagRun(Base, LoggingMixin):
         changed_tis = False
 
         if not scheduleable_tasks:
+            # 不存在待调度
             return ready_tis, changed_tis
 
         # Check dependencies
+        # 检查依赖
         for st in scheduleable_tasks:
             old_state = st.state
             if st.are_dependencies_met(
@@ -670,6 +682,7 @@ class DagRun(Base, LoggingMixin):
                 old_states[st.key] = old_state
 
         # Check if any ti changed state
+        # 校验、获取新状态
         tis_filter = TI.filter_for_tis(old_states.keys())
         if tis_filter is not None:
             fresh_tis = session.query(TI).filter(tis_filter).all()
@@ -906,6 +919,8 @@ class DagRun(Base, LoggingMixin):
                 )
                 .update({TI.state: State.SCHEDULED}, synchronize_session=False)
             )
+
+            self.log.info('Black hole \n\t schedulable_ti_ids %s\tcount:%d', repr(schedulable_ti_ids), count)
 
         # Tasks using DummyOperator should not be executed, mark them as success
         if dummy_ti_ids:

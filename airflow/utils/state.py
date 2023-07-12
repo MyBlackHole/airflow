@@ -97,6 +97,7 @@ class State:
     SENSING = TaskInstanceState.SENSING
     DEFERRED = TaskInstanceState.DEFERRED
 
+    # TI 的所有状态
     task_states: Tuple[Optional[TaskInstanceState], ...] = (None,) + tuple(TaskInstanceState)
 
     dag_states: Tuple[DagRunState, ...] = (
@@ -145,6 +146,7 @@ class State:
     A list of states indicating that a task is being executed.
     """
 
+    # 完成状态列表
     finished: FrozenSet[TaskInstanceState] = frozenset(
         [
             TaskInstanceState.SUCCESS,
@@ -162,6 +164,7 @@ class State:
     case, it is no longer running.
     """
 
+    # 为完成状态列表
     unfinished: FrozenSet[Optional[TaskInstanceState]] = frozenset(
         [
             None,
