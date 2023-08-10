@@ -48,11 +48,13 @@ class StandardTaskRunner(BaseTaskRunner):
 
     def _start_by_fork(self):
         pid = os.fork()
+        # 分裂了
         if pid:
             self.log.info("Started process %d to run task", pid)
             return psutil.Process(pid)
         else:
             # Start a new process group
+            # 开始独立组
             os.setpgid(0, 0)
             import signal
 
@@ -73,6 +75,7 @@ class StandardTaskRunner(BaseTaskRunner):
             # [1:] - remove "airflow" from the start of the command
             args = parser.parse_args(self._command[1:])
 
+            # 开始 task 运行
             self.log.info('Running: %s', self._command)
             self.log.info('Job %s: Subtask %s', self._task_instance.job_id, self._task_instance.task_id)
 

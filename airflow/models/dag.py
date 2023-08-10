@@ -2288,6 +2288,8 @@ class DAG(LoggingMixin):
         Creates a dag run from this dag including the tasks associated with this dag.
         Returns the dag run.
 
+        创建 dag_run execution_date(唯一)
+
         :param run_id: defines the run id for this dag run
         :type run_id: str
         :param run_type: type of DagRun
@@ -2362,6 +2364,7 @@ class DAG(LoggingMixin):
 
         # create the associated task instances
         # state is None at the moment of creation
+        # 关联创建任务实例
         run.verify_integrity(session=session)
 
         return run

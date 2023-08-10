@@ -224,9 +224,12 @@ class DagRun(Base, LoggingMixin):
             # because SQLAlchemy doesn't accept a set here.
             query = query.filter(cls.dag_id.in_(list(set(dag_ids))))
         if only_running:
+            # 只查询运行中
             query = query.filter(cls.state == State.RUNNING)
         else:
+            # 查询运行中与队列中
             query = query.filter(cls.state.in_([State.RUNNING, State.QUEUED]))
+        # 通过 dag_id 分组
         query = query.group_by(cls.dag_id)
         return {dag_id: count for dag_id, count in query.all()}
 
@@ -249,6 +252,7 @@ class DagRun(Base, LoggingMixin):
         from airflow.models.dag import DagModel
 
         if max_number is None:
+            # 设置默认 dag_run 获取个数
             max_number = cls.DEFAULT_DAGRUNS_TO_EXAMINE
 
         # TODO: Bake this query, it is run _A lot_
@@ -281,6 +285,7 @@ class DagRun(Base, LoggingMixin):
             cls.execution_date,
         )
 
+        # 不允许将来触发运行
         if not settings.ALLOW_FUTURE_EXEC_DATES:
             query = query.filter(DagRun.execution_date <= func.now())
 
@@ -491,6 +496,8 @@ class DagRun(Base, LoggingMixin):
         Determines the overall state of the DagRun based on the state
         of its TaskInstances.
 
+        根据 dag_run 确定总体更新状态
+
         :param session: Sqlalchemy ORM Session
         :type session: Session
         :param execute_callbacks: Should dag callbacks (success/failure, SLA etc) be invoked
@@ -642,7 +649,7 @@ class DagRun(Base, LoggingMixin):
         # 完成
         finished_tasks = [t for t in tis if t.state in State.finished]
         if unfinished_tasks:
-            # 查找需要加入队列的
+            # 查找需要加入队列的, (包括 NONE 新创建的, 没有 SCHEDULED、QUEUED)
             scheduleable_tasks = [ut for ut in unfinished_tasks if ut.state in SCHEDULEABLE_STATES]
             self.log.debug("number of scheduleable tasks for %s: %s task(s)", self, len(scheduleable_tasks))
             schedulable_tis, changed_tis = self._get_ready_tis(scheduleable_tasks, finished_tasks, session)
@@ -758,6 +765,7 @@ class DagRun(Base, LoggingMixin):
     def _emit_duration_stats_for_finished_state(self):
         if self.state == State.RUNNING:
             return
+        # 启动时间怎么会是空 ？
         if self.start_date is None:
             self.log.warning('Failed to record duration of %s: start_date is not set.', self)
             return
@@ -809,6 +817,7 @@ class DagRun(Base, LoggingMixin):
             session.merge(ti)
 
         # check for missing tasks
+        # 创建任务实例
         for task in dag.task_dict.values():
             if task.start_date > self.execution_date and not self.is_backfill:
                 continue
@@ -892,6 +901,12 @@ class DagRun(Base, LoggingMixin):
 
         All the TIs should belong to this DagRun, but this code is in the hot-path, this is not checked -- it
         is the caller's responsibility to call this function only with TIs from a single dag run.
+
+        将给定任务实例设置为计划状态。
+         “schedulable_tis” 的每个元素都应该已经设置了它的“task” 属性。
+         任何没有回调的 DummyOperator 都会直接设置为成功状态。
+         所有 TI 都应该属于这个 DagRun，但是这段代码位于热路径中，这没有被检查 - 它
+         调用者有责任仅使用来自单个 dag 运行的 TI 调用此函数。
         """
         # Get list of TI IDs that do not need to executed, these are
         # tasks using DummyOperator and without on_execute_callback / on_success_callback
@@ -903,13 +918,16 @@ class DagRun(Base, LoggingMixin):
                 and not ti.task.on_execute_callback
                 and not ti.task.on_success_callback
             ):
+                # 不需要执行
                 dummy_ti_ids.append(ti.task_id)
             else:
+                # 需要执行
                 schedulable_ti_ids.append(ti.task_id)
 
         count = 0
 
         if schedulable_ti_ids:
+            # 全部更新为 SCHEDULED
             count += (
                 session.query(TI)
                 .filter(

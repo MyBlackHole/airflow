@@ -36,7 +36,7 @@ from airflow.api_connexion.schemas.dag_run_schema import (
     dagruns_batch_form_schema,
     set_dagrun_state_form_schema,
 )
-from airflow.models import DagModel, DagRun
+from airflow.models import DagModel, DagRun, DAG
 from airflow.security import permissions
 from airflow.utils.session import provide_session
 from airflow.utils.state import State
@@ -259,6 +259,7 @@ def post_dag_run(dag_id, session):
 
     logical_date = pendulum.instance(post_body["execution_date"])
     run_id = post_body["run_id"]
+    # 查询是否有运行中的同批(execution_date) dag_run
     dagrun_instance = (
         session.query(DagRun)
         .filter(
@@ -268,9 +269,15 @@ def post_dag_run(dag_id, session):
         .first()
     )
     if not dagrun_instance:
+        # 没有同批运行
         try:
+            # 获取对应 dag
             dag = current_app.dag_bag.get_dag(dag_id)
+            # 创建 dag_run
+            # 没有开始事件
+            dag:DAG
             dag_run = dag.create_dagrun(
+                # 手动
                 run_type=DagRunType.MANUAL,
                 run_id=run_id,
                 execution_date=logical_date,

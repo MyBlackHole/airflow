@@ -95,6 +95,7 @@ class State:
     UPSTREAM_FAILED = TaskInstanceState.UPSTREAM_FAILED
     SKIPPED = TaskInstanceState.SKIPPED
     SENSING = TaskInstanceState.SENSING
+    # 延迟任务
     DEFERRED = TaskInstanceState.DEFERRED
 
     # TI 的所有状态
@@ -164,7 +165,7 @@ class State:
     case, it is no longer running.
     """
 
-    # 为完成状态列表
+    # 未完成状态列表
     unfinished: FrozenSet[Optional[TaskInstanceState]] = frozenset(
         [
             None,

@@ -100,6 +100,7 @@ class LocalTaskJob(BaseJob):
             return
 
         try:
+            # 开始执行运行 task 命令
             self.task_runner.start()
 
             heartbeat_time_limit = conf.getint('scheduler', 'scheduler_zombie_task_threshold')

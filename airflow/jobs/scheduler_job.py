@@ -650,13 +650,16 @@ class SchedulerJob(BaseJob):
 
             self.register_signals()
 
+            # 启动 agent
             self.processor_agent.start()
 
             execute_start_time = timezone.utcnow()
 
+            # 苦难轮回开始
             self._run_scheduler_loop()
 
             # Stop any processors
+            # 停止 dag file 监控 agent
             self.processor_agent.terminate()
 
             # Verify that all files were processed, and if so, deactivate DAGs that
@@ -707,6 +710,8 @@ class SchedulerJob(BaseJob):
         timers = EventScheduler()
 
         # Check on start up, then every configured interval
+        # 重置任何仍处于 QUEUED 或 SCHEDULED 状态的 TaskInstance
+        # 调度重启重新初始化???
         self.adopt_or_reset_orphaned_tasks()
 
         timers.call_regular_interval(
@@ -724,6 +729,7 @@ class SchedulerJob(BaseJob):
             self._emit_pool_metrics,
         )
 
+        # 循环业务处理
         for loop_count in itertools.count(start=1):
             with Stats.timer() as timer:
                 if self.using_sqlite:
@@ -743,6 +749,7 @@ class SchedulerJob(BaseJob):
 
                     # 删除会话所有实例
                     session.expunge_all()
+
                     num_finished_events = self._process_executor_events(session=session)
 
                 self.processor_agent.heartbeat()
@@ -811,11 +818,19 @@ class SchedulerJob(BaseJob):
         # Put a check in place to make sure we don't commit unexpectedly
         with prohibit_commit(session) as guard:
             if settings.USE_JOB_SCHEDULE:
-                # dag 创建 dag_run
+                # dag 创建 dag_run 与对应 TI (status None)
                 self._create_dagruns_for_dags(guard, session)
 
+            # 启动 State.QUEUED 状态的 dag_run
+            # 更新为 RUNNING
             self._start_queued_dagruns(session)
+
+            # 提交 dag_run 启动修改信息
+            # State.QUEUED to State.RUNNING
+            # set start_date
             guard.commit()
+
+            # 查询 dag_run 状态为运行态的
             dag_runs = self._get_next_dagruns_to_examine(State.RUNNING, session)
             # Bulk fetch the currently active dag runs for the dags we are
             # examining, rather than making one query per DagRun
@@ -824,6 +839,7 @@ class SchedulerJob(BaseJob):
             # 检查运行中的 dag_run
             # 处理调度 dag 的策略
             for dag_run in dag_runs:
+                # TI 的 state None to schedule
                 callback_to_run = self._schedule_dag_run(dag_run, session)
                 callback_tuples.append((dag_run, callback_to_run))
 
@@ -852,7 +868,7 @@ class SchedulerJob(BaseJob):
                 timer.start()
 
                 # Find anything TIs in state SCHEDULED, try to QUEUE it (send it to the executor)
-                # 推送任务到 执行器 queue list
+                # 推送任务 TI 为 schedule 到执行器 queue list, 并修改 state 为 queue
                 num_queued_tis = self._critical_section_execute_task_instances(session=session)
 
                 # Make sure we only sent this metric if we obtained the lock, otherwise we'll skew the
@@ -874,6 +890,7 @@ class SchedulerJob(BaseJob):
     @retry_db_transaction
     def _get_next_dagruns_to_examine(self, state: DagRunState, session: Session):
         """Get Next DagRuns to Examine with retries"""
+        # 获取 state 状态 dag_run
         return DagRun.next_dagruns_to_examine(state, session)
 
     @retry_db_transaction
@@ -938,6 +955,7 @@ class SchedulerJob(BaseJob):
             # create a new one. This is so that in the next Scheduling loop we try to create new runs
             # instead of falling in a loop of Integrity Error.
             if (dag.dag_id, dag_model.next_dagrun) not in existing_dagruns:
+                # 创建 dag_run
                 dag.create_dagrun(
                     run_type=DagRunType.SCHEDULED,
                     execution_date=dag_model.next_dagrun,
@@ -972,15 +990,19 @@ class SchedulerJob(BaseJob):
         session: Session,
     ) -> int:
         """Find DagRuns in queued state and decide moving them to running state"""
+        # 获取队列状态 dag_run
         dag_runs = self._get_next_dagruns_to_examine(State.QUEUED, session)
 
+        # 获取运行中 dag run 与 dag_run 对应运行中 task 个数
         active_runs_of_dags = defaultdict(
             int,
             DagRun.active_runs_of_dags((dr.dag_id for dr in dag_runs), only_running=True, session=session),
         )
 
+        # 更新为运行中
         def _update_state(dag: DAG, dag_run: DagRun):
             dag_run.state = State.RUNNING
+            # 更新 dag_run 开始时间
             dag_run.start_date = timezone.utcnow()
             if dag.timetable.periodic:
                 # TODO: Logically, this should be DagRunInfo.run_after, but the
@@ -1000,6 +1022,7 @@ class SchedulerJob(BaseJob):
             active_runs = active_runs_of_dags[dag_run.dag_id]
 
             if dag.max_active_runs and active_runs >= dag.max_active_runs:
+                # 限制单个 dag 同时运行多个 dag_run 个数
                 self.log.debug(
                     "DAG %s already has %d active runs, not moving any more runs to RUNNING state %s",
                     dag.dag_id,
@@ -1008,6 +1031,7 @@ class SchedulerJob(BaseJob):
                 )
             else:
                 active_runs_of_dags[dag_run.dag_id] += 1
+                # 更新为运行态
                 _update_state(dag, dag_run)
 
     def _schedule_dag_run(
@@ -1035,7 +1059,8 @@ class SchedulerJob(BaseJob):
             and dag.dagrun_timeout
             and dag_run.start_date < timezone.utcnow() - dag.dagrun_timeout
         ):
-            # 判断是否运行超时
+            # 超时处理
+            # 判断是否存在运行超时
             dag_run.set_state(State.FAILED)
             unfinished_task_instances = (
                 session.query(TI)
@@ -1087,7 +1112,8 @@ class SchedulerJob(BaseJob):
         # see #11147/commit ee90807ac for more details
 
         # 处理新的 dag_run running 触发的任务
-        # queue to schedule
+        # TI 层级
+        # None to schedule
         # 提供 schedule
         dag_run.schedule_tis(schedulable_tis, session)
 
@@ -1151,6 +1177,9 @@ class SchedulerJob(BaseJob):
         Reset any TaskInstance still in QUEUED or SCHEDULED states that were
         enqueued by a SchedulerJob that is no longer running.
 
+        重置任何仍处于 QUEUED 或 SCHEDULED 状态的 TaskInstance
+        由不再运行的 SchedulerJob 排队。???
+
         :return: the number of TIs reset
         :rtype: int
         """
@@ -1159,8 +1188,8 @@ class SchedulerJob(BaseJob):
 
         for attempt in run_with_db_retries(logger=self.log):
             with attempt:
-                import pdb
-                pdb.set_trace()
+                # import pdb
+                # pdb.set_trace()
                 self.log.debug(
                     "Running SchedulerJob.adopt_or_reset_orphaned_tasks with retries. Try %d of %d",
                     attempt.retry_state.attempt_number,
@@ -1241,6 +1270,7 @@ class SchedulerJob(BaseJob):
         Looks at all tasks that are in the "deferred" state and whose trigger
         or execution timeout has passed, so they can be marked as failed.
         """
+        # 发起延迟任务超时调度 SCHEDULED
         num_timed_out_tasks = (
             session.query(TaskInstance)
             .filter(TaskInstance.state == State.DEFERRED, TaskInstance.trigger_timeout < timezone.utcnow())
