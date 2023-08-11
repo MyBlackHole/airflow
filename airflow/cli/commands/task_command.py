@@ -159,6 +159,7 @@ def _run_task_by_local_task_job(args, ti):
         ignore_task_deps=args.ignore_dependencies,
         ignore_ti_state=args.force,
         pool=args.pool,
+        # 取出 external_executor_id
         external_executor_id=_extract_external_executor_id(args),
     )
     try:

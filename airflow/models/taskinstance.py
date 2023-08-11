@@ -1614,7 +1614,7 @@ class TaskInstance(Base, LoggingMixin):
         session=None,
     ) -> None:
         """Run TaskInstance"""
-        # 依赖检测
+        # 依赖检测 (非正常路径)
         res = self.check_and_change_state_before_execution(
             verbose=verbose,
             ignore_all_deps=ignore_all_deps,
