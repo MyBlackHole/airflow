@@ -680,6 +680,7 @@ class DagRun(Base, LoggingMixin):
         # 检查依赖
         for st in scheduleable_tasks:
             old_state = st.state
+            # 检查打印每个 task 检查信息
             if st.are_dependencies_met(
                 dep_context=DepContext(flag_upstream_failed=True, finished_tasks=finished_tasks),
                 session=session,

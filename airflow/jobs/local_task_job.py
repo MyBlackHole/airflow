@@ -25,6 +25,7 @@ from sqlalchemy.exc import OperationalError
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
 from airflow.jobs.base_job import BaseJob
+from airflow.models.dag import DAG
 from airflow.models.dagrun import DagRun
 from airflow.models.taskinstance import TaskInstance
 from airflow.sentry import Sentry
@@ -129,6 +130,8 @@ class LocalTaskJob(BaseJob):
 
                 return_code = self.task_runner.return_code(timeout=max_wait_time)
                 if return_code is not None:
+                    # task 业务逻辑结束
+                    # 开始 airflow 收尸逻辑
                     self.handle_task_exit(return_code)
                     return
 
@@ -169,6 +172,8 @@ class LocalTaskJob(BaseJob):
         self.task_instance._run_finished_callback(error=error)
         if not self.task_instance.test_mode:
             if conf.getboolean('scheduler', 'schedule_after_task_execution', fallback=True):
+                # 小型调度器
+                # 在每个 worker 上运行
                 self._run_mini_scheduler_on_child_tasks()
             self._update_dagrun_state_for_paused_dag()
 
@@ -230,7 +235,8 @@ class LocalTaskJob(BaseJob):
     def _run_mini_scheduler_on_child_tasks(self, session=None) -> None:
         try:
             # Re-select the row with a lock
-            dag_run = with_row_locks(
+            # 获取一个(理论只有一个), dag_run
+            dag_run: DagRun = with_row_locks(
                 session.query(DagRun).filter_by(
                     dag_id=self.dag_id,
                     run_id=self.task_instance.run_id,
@@ -263,8 +269,14 @@ class LocalTaskJob(BaseJob):
                 if not hasattr(schedulable_ti, "task"):
                     schedulable_ti.task = task.dag.get_task(schedulable_ti.task_id)
 
+            # 更新(调度任务)
             num = dag_run.schedule_tis(schedulable_tis)
+            # task 结束打印
             self.log.info("%d downstream tasks scheduled from follow-on schedule check", num)
+
+            # # Black Hole
+            # from time import sleep
+            # sleep(10)
 
             session.commit()
         except OperationalError as e:
@@ -282,9 +294,9 @@ class LocalTaskJob(BaseJob):
         Checks for paused dags with DagRuns in the running state and
         update the DagRun state if possible
         """
-        dag = self.task_instance.task.dag
+        dag: DAG = self.task_instance.task.dag
         if dag.get_is_paused():
-            dag_run = self.task_instance.get_dagrun(session=session)
+            dag_run: DagRun = self.task_instance.get_dagrun(session=session)
             if dag_run:
                 dag_run.dag = dag
                 dag_run.update_state(session=session, execute_callbacks=True)

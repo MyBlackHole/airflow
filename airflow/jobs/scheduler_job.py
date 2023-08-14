@@ -752,6 +752,7 @@ class SchedulerJob(BaseJob):
 
                     num_finished_events = self._process_executor_events(session=session)
 
+                # dag 文件重新检测
                 self.processor_agent.heartbeat()
 
                 # Heartbeat the scheduler periodically

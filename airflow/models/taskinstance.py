@@ -1020,6 +1020,7 @@ class TaskInstance(Base, LoggingMixin):
         for dep_status in self.get_failed_dep_statuses(dep_context=dep_context, session=session):
             failed = True
 
+            # task 执行完打印接下来 task 检查信息
             verbose_aware_logger(
                 "Dependencies not met for %s, dependency '%s' FAILED: %s",
                 self,

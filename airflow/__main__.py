@@ -49,4 +49,5 @@ def main():
 
 
 if __name__ == '__main__':
+    # 全局入口
     main()
