@@ -298,7 +298,7 @@ def task_run(args, dag=None):
     print(f"Running {ti} on host {hostname}")
 
     if args.interactive:
-        # 执行
+        # 交互执行
         _run_task_by_selected_method(args, dag, ti)
     else:
         with _capture_task_logs(ti):
